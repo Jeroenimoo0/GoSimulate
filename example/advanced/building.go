@@ -1,4 +1,4 @@
-package simulate
+package main
 
 import (
 	"time"
@@ -11,6 +11,14 @@ type Building struct {
 
 type WorkSupplier interface {
 	findWork(worker *Worker) Task
+}
+
+type TaskSupplier struct {
+	Task Task
+}
+
+func (t TaskSupplier) findWork(worker *Worker) Task {
+	return t.Task
 }
 
 type Workplace struct {
@@ -40,12 +48,10 @@ func (w *Workplace) fetchWork(worker *Worker) Task {
 	w.tL.Lock()
 	if len(w.tasks) > 0 {
 		for i, task := range w.tasks {
-			if task.CanBeCompleted(worker) {
-				w.tasks = append(w.tasks[:i], w.tasks[i+1:]...)
+			w.tasks = append(w.tasks[:i], w.tasks[i+1:]...)
 
-				w.tL.Unlock()
-				return task
-			}
+			w.tL.Unlock()
+			return task
 		}
 	}
 	w.tL.Unlock()
@@ -56,7 +62,7 @@ func (w *Workplace) fetchWork(worker *Worker) Task {
 		task = w.workSupplier.findWork(worker)
 	}
 
-	if task != nil && task.CanBeCompleted(worker) {
+	if task != nil {
 		return task
 	}
 

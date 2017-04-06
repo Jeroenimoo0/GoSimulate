@@ -1,7 +1,8 @@
-package simulate
+package main
 
 import (
 	"testing"
+	"time"
 )
 
 func TestEqualEqual1(t *testing.T) {
@@ -36,6 +37,25 @@ func TestEqualNotEqual3(t *testing.T) {
 	second := []Resource{None, None, None}
 
 	if Equal(first, second) != false {
+		t.Fail()
+	}
+}
+
+func TestStorage_TransferOrWait(t *testing.T) {
+	s1 := NewStorage(10)
+	s2 := NewStorage(10)
+
+	go func() {
+		time.Sleep(1)
+		s1.Add(Wood)
+		time.Sleep(1)
+		s1.Add(Wood)
+	}()
+
+	s1.TransferOrWait(s2, Wood)
+	s1.TransferOrWait(s2, Wood)
+
+	if !s2.Contains(Wood) || s1.Contains(Wood) {
 		t.Fail()
 	}
 }

@@ -1,4 +1,4 @@
-package simulate
+package main
 
 type Resource int
 const (
@@ -8,13 +8,6 @@ const (
 
 	Axe
 )
-
-var Items = []Resource {
-	Wood,
-	Stone,
-
-	Axe,
-}
 
 type enumResource struct {
 	Resource

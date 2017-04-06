@@ -1,7 +1,6 @@
-package simulate
+package main
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -10,7 +9,6 @@ type Task interface {
 	Start(worker *Worker) bool
 	Complete(worker *Worker) bool
 	GetName() string
-	CanBeCompleted(worker *Worker) bool
 }
 
 type TaskMoving struct {
@@ -36,41 +34,19 @@ func (t *TaskMoving) GetTimeToComplete(worker *Worker) time.Duration {
 }
 
 func (t *TaskMoving) Start(worker *Worker) bool {
-	_, result := t.from.Transfer(&worker.Storage, t.resource)
-
-	switch result {
-	case NoSpace:
-		fmt.Println("Could not move, NoSpace")
-		return false
-	case ResourceNotFound:
-		fmt.Println("Could not move, ResourceNotFound")
-		return false
-	}
+	t.from.TransferOrWait(&worker.Storage, t.resource)
 
 	return true
 }
 
 func (t *TaskMoving) Complete(worker *Worker) bool {
-	_, result := worker.Transfer(t.to, t.resource)
-
-	switch result {
-	case NoSpace:
-		fmt.Println("Could not move, NoSpace")
-		return false
-	case ResourceNotFound:
-		fmt.Println("Could not move, ResourceNotFound")
-		return false
-	}
+	worker.TransferOrWait(t.to, t.resource)
 
 	return true
 }
 
 func (t *TaskMoving) GetName() string {
 	return t.name
-}
-
-func (t *TaskMoving) CanBeCompleted(worker *Worker) bool {
-	return t.from.Contains(t.resource) && !t.to.Full() && !worker.Full()
 }
 
 type TaskResource struct {
@@ -121,20 +97,4 @@ func (t *TaskResource) Complete(worker *Worker) bool {
 
 func (t *TaskResource) GetName() string {
 	return t.name
-}
-
-
-func (t *TaskResource) CanBeCompleted(worker *Worker) bool {
-	inputLoop:
-	for _, inputRes := range t.input {
-		for _, res := range t.storage.GetResources() {
-			if res == inputRes {
-				continue inputLoop
-			}
-		}
-
-		return false
-	}
-
-	return true
 }

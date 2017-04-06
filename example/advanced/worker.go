@@ -1,8 +1,5 @@
-package simulate
+package main
 
-import (
-	"time"
-)
 
 type Worker struct {
 	Storage
@@ -22,34 +19,27 @@ func NewWorker(name string, world *World) *Worker {
 	}
 }
 
-func (w *Worker) step() time.Duration {
+func (w *Worker) Run() {
 	if w.task != nil {
+		//fmt.Println(w.name, "completed", w.task.GetName())
 		w.task.Complete(w)
 		w.task = nil
 	}
 
 	if w.workplace == nil {
-		return time.Second * -1
+		return
 	} else {
 		task := w.workplace.fetchWork(w)
 		if task != nil {
 			w.task = task
 			w.task.Start(w)
-			return w.task.GetTimeToComplete(w)
+
+			//fmt.Println(w.name, "started", w.task.GetName())
+
+			w.world.Simulation.Add(w, w.task.GetTimeToComplete(w))
 		} else {
+			//TODO Add callback for job
 			w.task = nil
-			return time.Second
 		}
-	}
-}
-
-func (w *Worker) run() {
-	for {
-		sleep := w.step()
-		if sleep < 0 {
-			return
-		}
-
-		time.Sleep(sleep)
 	}
 }

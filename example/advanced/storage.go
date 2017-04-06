@@ -1,22 +1,30 @@
-package simulate
+package main
 
-import "sync"
+import (
+	"sync"
+)
 
 type Storage struct {
-	sL sync.RWMutex
+	sL      sync.RWMutex
 	storage []Resource
+
+	cL          sync.Mutex
+	addCallback map[Resource][]chan bool
 }
 
 func NewStorage(size int) *Storage {
 	return &Storage{
 		sync.RWMutex{},
 		make([]Resource, size),
+		sync.Mutex{},
+		make(map[Resource][]chan bool),
 	}
 }
 
 type TransferResult int
+
 const (
-	Success TransferResult = iota
+	Success          TransferResult = iota
 	NoSpace
 	ResourceNotFound
 )
@@ -52,6 +60,28 @@ func (s *Storage) Transfer(other *Storage, resource Resource) (bool, TransferRes
 	return false, NoSpace
 }
 
+func (s *Storage) TransferOrWait(other *Storage, resource Resource) {
+	_, result := s.Transfer(other, resource)
+
+	if result == Success {
+		return
+	}
+
+	callback := make(chan bool)
+	// It is no guaranteed that when the resource was added we will be
+	// able to get it, therefore keep on trying until we actually get a
+	// successful transfer
+	for {
+		s.WaitFor(resource, callback)
+		<-callback
+
+		_, result = s.Transfer(other, resource)
+		if result == Success {
+			return
+		}
+	}
+}
+
 func (s *Storage) Remove(resource Resource) bool {
 	s.sL.RLock()
 
@@ -82,12 +112,40 @@ func (s *Storage) Add(resource Resource) bool {
 			s.storage[i] = resource
 			s.sL.Unlock()
 
+			s.cL.Lock()
+
+			callbacks := s.addCallback[resource]
+			if len(callbacks) > 0 {
+				callback := callbacks[0]
+				callbacks = callbacks[1:]
+				s.addCallback[resource] = callbacks
+
+				s.cL.Unlock()
+
+				go func() {
+					callback <- true
+				}()
+			} else {
+				s.cL.Unlock()
+			}
+
 			return true
 		}
 	}
 
 	s.sL.RUnlock()
 	return false
+}
+
+func (s *Storage) WaitFor(resource Resource, callback chan bool) {
+	s.cL.Lock()
+
+	callbacks := s.addCallback[resource]
+
+	callbacks = append(callbacks, callback)
+	s.addCallback[resource] = callbacks
+
+	s.cL.Unlock()
 }
 
 func (s *Storage) GetResources() []Resource {
