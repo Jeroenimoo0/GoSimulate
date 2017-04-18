@@ -53,6 +53,6 @@ func benchmarkMain_SimulateWorld(f fCreateWorld, l time.Duration, b *testing.B) 
 
 		b.StartTimer()
 
-		world.Simulation.Run(l)
+		world.Simulation.Run()
 	}
 }

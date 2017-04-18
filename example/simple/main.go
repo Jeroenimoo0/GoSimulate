@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var simulation simulate.Simulation = *simulate.NewSimulation()
+var simulation simulate.Simulation = simulate.NewSimulationInstant(time.Second * 20)
 
 type Worker struct {
 	name string
@@ -30,5 +30,5 @@ func main() {
 	simulation.Add(&Worker{"Bob", false}, time.Millisecond * 4140)
 	simulation.Add(&Worker{"Harry", false}, time.Second)
 
-	simulation.Run(time.Second * 20)
+	simulation.Run()
 }

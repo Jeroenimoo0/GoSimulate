@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"time"
-	_ "net/http/pprof"
 	"github.com/Jeroenimoo0/GoSimulate"
 )
 
@@ -21,7 +20,10 @@ func bigWorld() *World {
 
 func world(multiplier int) *World {
 	world := World{}
-	world.Simulation = *simulate.NewSimulation()
+
+	simulation := simulate.NewSimulationInstant(time.Hour * 48)
+
+	world.Simulation = simulation
 
 	world.Warehouse = *NewWarehouse(&world)
 	world.Mine = []Mine{}
@@ -72,16 +74,10 @@ func world(multiplier int) *World {
 // ----------- Setup & run ------------
 
 func main() {
-	for i := 0; i < 1; i++ {
-		world := smallWorld()
+	world := bigWorld()
 
-		now := time.Now()
-		world.Simulation.Run(time.Second * 60 * 60 * 4)
+	now := time.Now()
+	world.Simulation.Run()
 
-		fmt.Println("Simulated world for ", world.Simulation.TotalTime, "in", time.Now().Sub(now))
-	}
-
-	//log.Println(http.ListenAndServe("localhost:6060", nil))
-
-	fmt.Println("Bye world.")
+	fmt.Println("Simulated world for ", world.Simulation.GetRunTime(), "in", time.Now().Sub(now))
 }

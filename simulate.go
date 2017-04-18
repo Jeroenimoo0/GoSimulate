@@ -17,7 +17,16 @@ type waitingActor struct {
 
 var Timeout time.Duration = time.Millisecond * 1
 
-type Simulation struct {
+type Simulation interface {
+	Run()
+	Stop()
+
+	Add(actor Actor, delay time.Duration)
+
+	GetRunTime() time.Duration
+}
+
+type SimulationInstant struct {
 	l sync.Mutex
 	waiting []waitingActor
 	lastTime time.Duration
@@ -27,12 +36,14 @@ type Simulation struct {
 	asleep bool
 	awake chan bool
 
-	TotalTime time.Duration
-	TotalTimeAsleep time.Duration
+	period time.Duration
+
+	totalTime time.Duration
+	totalTimeAsleep time.Duration
 }
 
-func NewSimulation() *Simulation {
-	return &Simulation{
+func NewSimulationInstant(period time.Duration) *SimulationInstant {
+	return &SimulationInstant{
 		sync.Mutex{},
 		[]waitingActor{},
 		0,
@@ -40,19 +51,24 @@ func NewSimulation() *Simulation {
 		false,
 		false,
 		make(chan bool),
+		period,
 		0,
 		0,
 	}
 }
 
-func (s *Simulation) Run(period time.Duration) {
+func (s *SimulationInstant) Run() {
 	if s.running {
 		panic("Already running")
 	}
 
+	if s.finished {
+		panic("Already finished")
+	}
+
 	s.running = true
 
-	simulate:
+	loop:
 	for {
 		s.l.Lock()
 
@@ -64,10 +80,10 @@ func (s *Simulation) Run(period time.Duration) {
 			now := time.Now()
 			select {
 			case <-s.awake:
-				s.TotalTimeAsleep += time.Now().Sub(now)
+				s.totalTimeAsleep += time.Now().Sub(now)
 				continue
 			case <-time.After(Timeout):
-				break simulate;
+				break loop
 			}
 		}
 
@@ -75,9 +91,9 @@ func (s *Simulation) Run(period time.Duration) {
 		s.waiting = s.waiting[1:]
 
 		wait := entry.date - s.lastTime
-		s.TotalTime += wait
+		s.totalTime += wait
 
-		if s.TotalTime > period {
+		if s.totalTime > s.period {
 			s.l.Unlock()
 			break
 		}
@@ -95,7 +111,11 @@ func (s *Simulation) Run(period time.Duration) {
 	s.l.Unlock()
 }
 
-func (s *Simulation) Add(actor Actor, delay time.Duration) {
+func (s *SimulationInstant) Stop() {
+	panic("Not supported")
+}
+
+func (s *SimulationInstant) Add(actor Actor, delay time.Duration) {
 	s.l.Lock()
 
 	if s.finished {
@@ -138,4 +158,82 @@ func insertSorted (slice []waitingActor, entry waitingActor) []waitingActor {
 
 	// Insert into array
 	return append(slice[:i], append([]waitingActor{entry}, slice[i:]...)...)
+}
+
+func (s *SimulationInstant) GetRunTime() time.Duration {
+	s.l.Lock()
+	timeRunning := s.totalTime
+	s.l.Unlock()
+
+	return timeRunning
+}
+
+type SimulationRealtime struct {
+	l sync.Mutex
+	initActors []waitingActor
+
+	running bool
+	finished bool
+
+	TimeMultiplier float32
+
+	startTime time.Time
+}
+
+func NewSimulationRealtime() *SimulationRealtime {
+	return &SimulationRealtime{
+		sync.Mutex{},
+		[]waitingActor{},
+		false,
+		false,
+		1,
+		time.Now(),
+	}
+}
+
+func (s *SimulationRealtime) Run() {
+	if s.running {
+		panic("Already running")
+	}
+
+	if s.finished {
+		panic("Already finished")
+	}
+
+	s.running = true
+	s.startTime = time.Now()
+
+	for _, waiting := range s.initActors {
+		go waiting.actor.Run()
+	}
+}
+
+func (s *SimulationRealtime) Stop() {
+	s.l.Lock()
+
+	if !s.running {
+		panic("Not running")
+	}
+
+	s.running = false
+	s.finished = true
+	s.l.Unlock()
+}
+
+func (s *SimulationRealtime) Add(actor Actor, delay time.Duration) {
+	if s.running {
+		go func() {
+			time.Sleep(time.Duration(float32(delay) * s.TimeMultiplier))
+			actor.Run()
+		}()
+	} else if !s.finished {
+		s.initActors = append(s.initActors, waitingActor{
+			actor,
+			delay,
+		})
+	}
+}
+
+func (s *SimulationRealtime) GetRunTime() time.Duration {
+	return time.Now().Sub(s.startTime)
 }
